@@ -1,0 +1,213 @@
+<?php
+include "db.php";
+session_start();
+
+// Check if the user is not logged in
+if (!isset($_SESSION['username'])) {
+    header("Location: login.php");
+    exit();
+}
+
+// Delete functionality
+if (isset($_GET['delete_faculty'])) {
+    $id = $_GET['delete_faculty'];
+
+    // Use prepared statements for security
+    $stmt = $conn->prepare("DELETE FROM faculty WHERE id = ?");
+    $stmt->bind_param("i", $id);
+
+    if ($stmt->execute()) {
+        echo "<script>alert('Faculty deleted successfully!');</script>";
+    } else {
+        echo "<script>alert('Failed to delete faculty.');</script>";
+    }
+    $stmt->close();
+
+    // Redirect to avoid resubmission
+    header("Location: faculty.php");
+    exit();
+}
+
+// Filtering by role if specified
+$role_filter = isset($_GET['role']) ? $_GET['role'] : "";
+$filter_query = $role_filter ? "WHERE role = ?" : "";
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faculty Management System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            padding: 0;
+           
+            background: url("image.jpg"), #000;
+  background-position: center;
+  background-size: cover;
+        }
+        .container {
+            width: 90%;
+            margin: 0 auto;
+            max-width: 1200px;
+        }
+        header {
+            margin: 20px 0;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+        }
+        nav {
+            background: rgb(70, 95, 121);
+            border-radius: 5px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        nav ul {
+            display: flex;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+        nav ul li {
+            flex: 1;
+        }
+        nav ul li a {
+            display: block;
+            text-align: center;
+            padding: 15px;
+            color: #fff;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        nav ul li a:hover {
+            background: rgb(111, 125, 139);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        table th, table td {
+            padding: 12px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        table th {
+            background-color: rgb(70, 95, 121);
+            color: #fff;
+        }
+        .action-btn {
+            background-color: #28a745;
+            color: white;
+            padding: 6px 12px;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .delete-btn {
+            background-color: #dc3545;
+            color: white;
+            padding: 6px 12px;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .delete-btn:hover {
+            background-color: #c82333;
+        }
+        .filter-form {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: flex-end;
+        }
+        .filter-form select, .filter-form button {
+            padding: 10px;
+            margin-left: 10px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Faculty Management System</h1>
+        </header>
+
+        <!-- Navigation Menu -->
+        <nav>
+            <ul>
+                <li><a href="admin.php">Home</a></li>
+                <li><a href="add-flty.php">Add Faculty</a></li>
+                <li><a href="login.php">Logout</a></li>
+            </ul>
+        </nav>
+
+        <!-- Filter Form -->
+        <form method="GET" class="filter-form">
+            <label for="role">Filter by Role:</label>
+            <select name="role" id="role">
+                <option value="">All</option>
+                <option value="HOD" <?= $role_filter == 'HOD' ? 'selected' : '' ?>>HOD</option>
+                <option value="Professor" <?= $role_filter == 'Professor' ? 'selected' : '' ?>>Professor</option>
+                <option value="Associate Professor" <?= $role_filter == 'Associate Professor' ? 'selected' : '' ?>>Associate Professor</option>
+                <option value="Assistant Professor" <?= $role_filter == 'Assistant Professor' ? 'selected' : '' ?>>Assistant Professor</option>
+            </select>
+            <button type="submit">Filter</button>
+        </form>
+
+        <!-- Faculty Table -->
+        <table>
+            <thead>
+                <tr>
+                    <th>Faculty No.</th>
+                    <th>Name</th>
+                    <th>Designation</th>
+                    <th>Email</th>
+                    <th>Phone Number</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                if ($role_filter) {
+                    $stmt = $conn->prepare("SELECT * FROM faculty $filter_query");
+                    $stmt->bind_param("s", $role_filter);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                } else {
+                    $result = $conn->query("SELECT * FROM faculty");
+                }
+
+                if ($result && $result->num_rows > 0) {
+                    while ($row = $result->fetch_assoc()) {
+                        echo "<tr>
+                                <td>{$row['id']}</td>
+                                <td>{$row['name']}</td>
+                                <td>{$row['role']}</td>
+                                <td>{$row['email']}</td>
+                                <td>{$row['phone_number']}</td>
+                                <td>
+                                    <a href='edit_faculty.php?id={$row['id']}' class='action-btn'>Edit</a>
+                                    <a href='?delete_faculty={$row['id']}' class='delete-btn' onclick='return confirm(\"Are you sure you want to delete this faculty?\")'>Delete</a>
+                                </td>
+                            </tr>";
+                    }
+                } else {
+                    echo "<tr><td colspan='6'>No faculty found.</td></tr>";
+                }
+
+                if ($role_filter) {
+                    $stmt->close();
+                }
+                ?>
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
